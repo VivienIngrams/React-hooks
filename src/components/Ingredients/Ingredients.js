@@ -18,11 +18,27 @@ const ingredientReducer = (currentIngredients, action) => {
   }
 };
 
+const httpReducer = (currentHttpState, action) => {
+  switch (action.type) {
+    case 'SEND':
+    return { loading: true, error: null};
+    case 'RESPONSE':
+      return {...currentHttpState, loading: false};
+      case 'ERROR':
+        return {loading: false, error: action.errorMessage};
+        case 'CLEAR':
+          return {...currentHttpState, error: null};
+        default:
+          throw new Error('Should not be reached!')
+  }
+}
+
 function Ingredients() {
   const [userIngredients, dispatch] = useReducer(ingredientReducer, []);
+  const [httpState, dispatchHttp] = useReducer(httpReducer, {loading: false, error: null});
   // const [userIngredients, setUserIngredients] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState();
+  // const [isLoading, setIsLoading] = useState(false);
+  // const [error, setError] = useState();
 
   useEffect(() => {
     console.log("Rendering", userIngredients);
@@ -37,7 +53,7 @@ function Ingredients() {
   }, []);
 
   const addIngredientHandler = (ingredient) => {
-    setIsLoading(true);
+    dispatchHttp({type: 'SEND'});
     fetch(
       "https://react-tasks-a94be-default-rtdb.europe-west1.firebasedatabase.app/ingredients.json",
       {
@@ -47,7 +63,7 @@ function Ingredients() {
       }
     )
       .then((response) => {
-        setIsLoading(false);
+        dispatchHttp({type: 'RESPONSE'});
         return response.json();
       })
       .then((responseData) => {
@@ -63,7 +79,7 @@ function Ingredients() {
   };
 
   const removeIngredientHandler = (ingredientId) => {
-    setIsLoading(true);
+    dispatchHttp({type: 'SEND'});
     fetch(
       `https://react-tasks-a94be-default-rtdb.europe-west1.firebasedatabase.app/ingredients/${ingredientId}.json`,
       {
@@ -71,7 +87,7 @@ function Ingredients() {
       }
     )
       .then((response) => {
-        setIsLoading(false);
+        dispatchHttp({type: 'RESPONSE'});
         // setUserIngredients((prevIngredients) =>
         //   prevIngredients.filter((ingredient) => ingredient.id !== ingredientId)
         // );
@@ -81,22 +97,21 @@ function Ingredients() {
         });
       })
       .catch((error) => {
-        setError("Something went wrong!");
-        setIsLoading(false);
+        dispatchHttp({type: 'ERROR', errorMessage: 'Something went wrong'});
       });
   };
 
   const clearError = () => {
-    setError(null);
+    dispatch({ type: 'CLEAR'})
   };
 
   return (
     <div className="App">
-      {error && <ErrorModal onClose={clearError}>{error}</ErrorModal>}
+      {httpState.error && <ErrorModal onClose={clearError}>{httpState.error}</ErrorModal>}
 
       <IngredientForm
         onAddIngredient={addIngredientHandler}
-        loading={isLoading}
+        loading={httpState.loading}
       />
 
       <section>
