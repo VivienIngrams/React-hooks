@@ -6,6 +6,7 @@ import IngredientList from "./IngredientList";
 
 function Ingredients() {
   const [userIngredients, setUserIngredients] = useState([]);
+  const [ isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     console.log("Rendering", userIngredients);
@@ -16,6 +17,7 @@ function Ingredients() {
   }, []);
 
   const addIngredientHandler = (ingredient) => {
+    setIsLoading(true);
     fetch(
       "https://react-tasks-a94be-default-rtdb.europe-west1.firebasedatabase.app/ingredients.json",
       {
@@ -25,6 +27,7 @@ function Ingredients() {
       }
     )
       .then((response) => {
+        setIsLoading(false);
         return response.json();
       })
       .then((responseData) => {
@@ -36,12 +39,14 @@ function Ingredients() {
   };
 
   const removeIngredientHandler = (ingredientId) => {
+    setIsLoading(true);
     fetch(
       `https://react-tasks-a94be-default-rtdb.europe-west1.firebasedatabase.app/ingredients/${ingredientId}.json`,
       {
         method: "DELETE",
       }
     ).then((response) => {
+      setIsLoading(false);
       setUserIngredients((prevIngredients) =>
         prevIngredients.filter((ingredient) => ingredient.id !== ingredientId)
       );
@@ -50,7 +55,7 @@ function Ingredients() {
 
   return (
     <div className="App">
-      <IngredientForm onAddIngredient={addIngredientHandler} />
+      <IngredientForm onAddIngredient={addIngredientHandler} loading={isLoading} />
 
       <section>
         <Search onLoadIngredients={filteredIngredientsHandler} />
