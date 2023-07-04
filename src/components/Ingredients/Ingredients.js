@@ -1,16 +1,17 @@
-import React, { useEffect, useCallback, useReducer } from "react";
+import React, { useEffect, useCallback, useReducer, useMemo } from "react";
 
 import IngredientForm from "./IngredientForm";
 import Search from "./Search";
 import IngredientList from "./IngredientList";
 import ErrorModal from "../UI/ErrorModal";
+import useHttp from "../../hooks/http";
 
 const ingredientReducer = (currentIngredients, action) => {
   switch (action.type) {
     case "SET":
       return action.ingredients;
     case "ADD":
-      return [...(currentIngredients + action.ingredient)];
+      return [...currentIngredients, action.ingredient];
     case "DELETE":
       return currentIngredients.filter((ing) => ing.id !== action.id);
     default:
@@ -18,31 +19,20 @@ const ingredientReducer = (currentIngredients, action) => {
   }
 };
 
-const httpReducer = (currentHttpState, action) => {
-  switch (action.type) {
-    case 'SEND':
-    return { loading: true, error: null};
-    case 'RESPONSE':
-      return {...currentHttpState, loading: false};
-      case 'ERROR':
-        return {loading: false, error: action.errorMessage};
-        case 'CLEAR':
-          return {...currentHttpState, error: null};
-        default:
-          throw new Error('Should not be reached!')
-  }
-}
-
 function Ingredients() {
   const [userIngredients, dispatch] = useReducer(ingredientReducer, []);
-  const [httpState, dispatchHttp] = useReducer(httpReducer, {loading: false, error: null});
+  const { isLoading, error, data, sendRequest, reqExtra, reqIdentifier } = useHttp();
   // const [userIngredients, setUserIngredients] = useState([]);
   // const [isLoading, setIsLoading] = useState(false);
   // const [error, setError] = useState();
 
   useEffect(() => {
-    console.log("Rendering", userIngredients);
-  }, [userIngredients]);
+    if (!isLoading && reqIdentifier === 'REMOVE_INGREDIENT') {
+      dispatch({ type: "DELETE", id: reqExtra });
+    } else if (!isLoading && !error && reqIdentifier === 'ADD_INGREDIENT') {
+      dispatch({ type: "ADD", ingredient: { id: data.name, ...reqExtra } });
+    }
+  }, [data, reqExtra, reqIdentifier, isLoading, error]);
 
   const filteredIngredientsHandler = useCallback((filteredIngredients) => {
     // setUserIngredients(filteredIngredients);
@@ -52,74 +42,77 @@ function Ingredients() {
     });
   }, []);
 
-  const addIngredientHandler = (ingredient) => {
-    dispatchHttp({type: 'SEND'});
-    fetch(
+  const addIngredientHandler = useCallback((ingredient) => {
+    sendRequest(
       "https://react-tasks-a94be-default-rtdb.europe-west1.firebasedatabase.app/ingredients.json",
-      {
-        method: "POST",
-        body: JSON.stringify(ingredient),
-        headers: { "Content-Type": "application/json" },
-      }
-    )
-      .then((response) => {
-        dispatchHttp({type: 'RESPONSE'});
-        return response.json();
-      })
-      .then((responseData) => {
-        // setUserIngredients((prevIngredients) => [
-        //   ...prevIngredients,
-        //   { id: responseData.name, ...ingredient },
-        // ]);
-        dispatch({
-          type: "ADD",
-          ingredient: { id: responseData.name, ...ingredient },
-        });
-      });
-  };
+      "POST",
+      JSON.stringify(ingredient),
+      ingredient,
+      'ADD_INGREDIENT'
+    );
+    // dispatchHttp({ type: "SEND" });
+    // fetch(
+    //   "https://react-tasks-a94be-default-rtdb.europe-west1.firebasedatabase.app/ingredients.json",
+    //   {
+    //     method: "POST",
+    //     body: JSON.stringify(ingredient),
+    //     headers: { "Content-Type": "application/json" },
+    //   }
+    // )
+    //   .then((response) => {
+    //     dispatchHttp({ type: "RESPONSE" });
+    //     return response.json();
+    //   })
+    //   .then((responseData) => {
+    // setUserIngredients((prevIngredients) => [
+    //   ...prevIngredients,
+    //   { id: responseData.name, ...ingredient },
+    // ]);
+    //   dispatch({
+    //     type: "ADD",
+    //     ingredient: { id: responseData.name, ...ingredient },
+    //   });
+    // });
+  }, []);
 
-  const removeIngredientHandler = (ingredientId) => {
-    dispatchHttp({type: 'SEND'});
-    fetch(
-      `https://react-tasks-a94be-default-rtdb.europe-west1.firebasedatabase.app/ingredients/${ingredientId}.json`,
-      {
-        method: "DELETE",
-      }
-    )
-      .then((response) => {
-        dispatchHttp({type: 'RESPONSE'});
-        // setUserIngredients((prevIngredients) =>
-        //   prevIngredients.filter((ingredient) => ingredient.id !== ingredientId)
-        // );
-        dispatch({
-          type: "DELETE",
-          id: ingredientId,
-        });
-      })
-      .catch((error) => {
-        dispatchHttp({type: 'ERROR', errorMessage: 'Something went wrong'});
-      });
-  };
+  const removeIngredientHandler = useCallback(
+    (ingredientId) => {
+      sendRequest(
+        `https://react-tasks-a94be-default-rtdb.europe-west1.firebasedatabase.app/ingredients/${ingredientId}.json`,
+        "DELETE",
+        null,
+        ingredientId,
+        'REMOVE_INGREDIENT'
+      );
+    },
+    [sendRequest]
+  );
 
   const clearError = () => {
-    dispatch({ type: 'CLEAR'})
+    dispatch({ type: "CLEAR" });
   };
+
+  const ingredientList = useMemo(() => {
+    return (
+      <IngredientList
+        ingredients={userIngredients}
+        onRemoveItem={removeIngredientHandler}
+      />
+    );
+  }, [userIngredients, removeIngredientHandler]);
 
   return (
     <div className="App">
-      {httpState.error && <ErrorModal onClose={clearError}>{httpState.error}</ErrorModal>}
+      {error && <ErrorModal onClose={clearError}>{error}</ErrorModal>}
 
       <IngredientForm
         onAddIngredient={addIngredientHandler}
-        loading={httpState.loading}
+        loading={isLoading}
       />
 
       <section>
         <Search onLoadIngredients={filteredIngredientsHandler} />
-        <IngredientList
-          ingredients={userIngredients}
-          onRemoveItem={removeIngredientHandler}
-        />
+        {ingredientList}
       </section>
     </div>
   );
